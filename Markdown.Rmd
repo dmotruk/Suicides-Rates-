@@ -1,0 +1,116 @@
+---
+title: "My Beginners Analysis"
+author: "Denis Motruk"
+date: "January 17, 2020"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+To get a better understanding and feel for R and applied statistics as a whole I decided to create my own data analysis project.
+The Data I will be using can be found here https://www.kaggle.com/russellyates88/suicide-rates-overview-1985-to-2016
+
+```{r include=FALSE}
+library(readxl)
+library(data.table)
+library(ggplot2)
+library(tidyverse)
+library(gvlma)
+library(car)
+
+```
+##Importing the Data and cleaning 
+
+Had to get rid of empty HDI values and their associated rows
+```{r}
+suicides <- fread("suicide data.csv")
+hdi <- suicides[`HDI for year` != 'NA']
+
+all <- hdi[,lapply(.SD, mean), by=.(country, year, sex),.SDcols = c("suicides/100k pop", "HDI for year", "gdp_per_capita ($)")]
+no_null <- all[`suicides/100k pop` != '0']
+
+no_null2 <- no_null %>% 
+  mutate(female = ifelse(grepl("female", sex), "1", "0"))
+
+```
+
+##Modelling Suicide Rates
+I need to be careful however, since there exists a relationships between HDI and GDP per capita.
+```{r}
+rate <- no_null2$`suicides/100k pop`
+hdi <- no_null2$`HDI for year`
+gdp <- no_null2$`gdp_per_capita ($)`
+sex <- no_null2$female
+
+plot(hdi, gdp)
+
+```
+To deal with this I split the model to see individual effects
+
+##Rate modelled by HDI 
+```{r}
+mdl <- lm(log(rate)~hdi)
+summary(mdl)
+
+plot(hdi, log(rate))
+abline(mdl, col='red', pch=19)
+```
+We can see that there is a slight relationship with HDI and Suicide rates in the world
+
+##Rate modelled by GDP 
+```{r}
+mdl2 <- lm(log(rate)~gdp)
+summary(mdl2)
+plot(gdp, log(rate))
+abline(mdl2, col='red', pch=19)
+```
+As we can see GDP per capita also has a relationship with Suicide rates
+
+
+##Compare means of the different year chunks
+
+I had to apply a log transformation to better satisfy the assumptions of a linear model
+
+```{r}
+yrs1 <- subset(no_null2, format(as.numeric(year))<=2000)
+yrs2 <- subset(no_null2, format(as.numeric(year))>2000)
+
+
+y1rate <- yrs1$`suicides/100k pop`
+y1hdi <- yrs1$`HDI for year`
+
+
+yr1model <- lm(log(y1rate) ~ (y1hdi))
+summary(yr1model)
+
+
+
+```
+
+
+```{r}
+y2rate <- yrs2$`suicides/100k pop`
+y2hdi <- yrs2$`HDI for year`
+
+yr2model <- lm(log(y2rate) ~ (y2hdi))
+summary(yr2model)
+```
+
+
+```{r}
+boxplot(y1rate, y2rate)
+t.test(y1rate, y2rate)
+```
+
+
+##Conclusions
+Both GDP per capita and HDI are correlated with a higher suicide rate for a given country. However neither are great predictors of suicde rates. Men have higher suicide rates than women. Additionally we can see that suicide rates (globally) have been going down.
+
+Barring me having done something terribly wrong, I believe it makes sense that neither of these varibales happen to predict suicide rates well. As we often see, there are many factors that going into such a decision. However, these findings help us identify populations of people who may be at higher risk and thus preventitive measures can be taken.
+
+#Next Steps
+Investigate how HDI effects suicide rates in wealthy vs poor countries
+
+#Note
+This is by no means a comprehensive study. Out of all my research I found this to provide the most insight into the data so far. I plan to expand this page and its findings as I learn more.
